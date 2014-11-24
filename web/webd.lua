@@ -110,6 +110,18 @@ local CMD = {
 	    if is_static(url) then
 	       open_file(id,url)
 	    else
+	       local k,v 
+	       for k,v in ipairs(middle_wares) do
+		  if url:find(v.pattern) then
+		     local middle_ware = v.middle_ware
+		     local code,a,b = sweb.middle_ware(url, method, header, body,web_root,middle_ware)
+		     if code ~=200 then
+			response(id,code,a,b)		
+			socket.close(id)
+			return
+		     end
+		  end
+	       end
 	       response(id,sweb.handle(url, method, header, body,web_root))
 	    end
 	 end
@@ -165,12 +177,12 @@ elseif mode =="master" then
 	 skynet.ret(skynet.pack(true))
       end,
       
-      use = function(path,middle_ware)
+      use = function(pattern,middle_ware)
 	 if state ~= "init" then
 	    print("server has start!!!")
 	    skynet.ret(skynet.pack(false,"server has start!"))
 	 end
-	 table.insert(middle_wares,{path=path,middle_ware=middle_ware})
+	 table.insert(middle_wares,{pattern=pattern,middle_ware=middle_ware})
       end
    }
    

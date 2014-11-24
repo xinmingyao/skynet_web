@@ -49,6 +49,30 @@ function sweb.interface(name,web_root)
 	end
 end
 
+function sweb.middle_ware(url,method, header, body,web_root,middle_ware)
+   local path, query = urllib.parse(url)   
+   local q = {}
+   if query then
+      q = urllib.parse_query(query)
+   end
+   local path, query = urllib.parse(url)
+   path = strsplit("/",middle_ware)
+   local f = path[#path]
+   table.remove(path,#path)
+   
+   local name = table.concat(path,"/")
+
+   local ok,ret = sweb.interface(name,web_root)
+   if not ok then
+      return 503,url .."error:no middleware"..ret
+   end
+   local req = {method = method,header=header,body=body,query=q}
+   if ret["rep"][f] then
+      return ret["rep"][f](req)
+   else
+      return 503,url ..":has no valid handle"
+   end
+end
 function sweb.handle(url,method, header, body,web_root)
    local path, query = urllib.parse(url)   
    local q = {}

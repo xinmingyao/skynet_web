@@ -8,14 +8,13 @@ function _M:use(...)
 end
 
 function _M:listen()
-   local web = skynet.newservice("webd","master")
-   assert(web)
-   self.web = web
-   skynet.call(web,"lua","start",self.port,self.config)
+   skynet.call(self.web,"lua","start",self.port,self.config)
 end
 --web_root,static="*.html|*.css"
 function express.app(port,config)
    local t = {port=port,config=config}
+   local web = skynet.newservice("webd","master")
+   t.web = web
    return setmetatable(t,{__index=_M})
 end
 
