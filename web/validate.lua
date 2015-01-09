@@ -86,6 +86,9 @@ local valid_funs = {
 	 
       end
    end,
+   option= function(value)
+      return value
+   end
 }
 
 
@@ -147,6 +150,7 @@ function validate.valid_get(source,vs)
 		  end
 		  dst[name] = value
 	       else
+		  if v1 == "option" then break end
 		  local str = string.format(messages[v1],name)
 		  table.insert(errs,str)
 		  err = true
