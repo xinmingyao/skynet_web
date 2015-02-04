@@ -91,6 +91,7 @@ function _M.new(id,handle,opts)
 			      sock = sock,
 			      max_payload_len = max_payload_len or 65535,
 			      send_masked = send_masked,
+			      headers = headers
 			   }, mt)
    assert((handle and type(handle)=="table"),"websocket must have handle,handle must table")
    skynet.timeout(0,function()
