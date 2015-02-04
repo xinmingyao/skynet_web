@@ -25,7 +25,11 @@ local function strsplit(pattern, text)
 end
 
 function sweb.interface(name,web_root)
-   local G = { require = _ENV.require,print=_ENV.print,assert=_ENV.assert }
+   local G ={}
+   local k,v 
+   for k,v in pairs(_ENV) do
+      G[k] = v
+   end
 	if typeclass[name] then
 		return true,typeclass[name]
 	end
