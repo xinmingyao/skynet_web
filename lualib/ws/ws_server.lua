@@ -1,6 +1,5 @@
 -- Copyright (C) Yichun Zhang (agentzh)
 local skynet = require "skynet"
-local bit = require "bit32"
 local wbproto = require "ws.ws_proto"
 local new_tab = wbproto.new_tab
 local _recv_frame = wbproto.recv_frame
@@ -10,9 +9,6 @@ local str_lower = string.lower
 local char = string.char
 local str_find = string.find
 local crypto = require "crypt"
-local hmac = crypto.hmac64
-local band = bit.band
-local rshift = bit.rshift
 local type = type
 local setmetatable = setmetatable
 -- local print = print
@@ -174,7 +170,7 @@ function _M.send_close(self, code, msg)
     if code then
         if type(code) ~= "number" or code > 0x7fff then
         end
-        payload = char(band(rshift(code, 8), 0xff), band(code, 0xff))
+        payload = char(((code>> 8) & 0xff), (code & 0xff))
                         .. (msg or "")
     end
     return send_frame(self, true, 0x8, payload)

@@ -1,16 +1,9 @@
 -- Copyright (C) Yichun Zhang (agentzh)
 --modify yaoxinming
 
-local bit = require "bit32"
 local byte = string.byte
 local char = string.char
 local sub = string.sub
-local band = bit.band
-local bor = bit.bor
-local bxor = bit.bxor
-local lshift = bit.lshift
-local rshift = bit.rshift
-local tohex = bit.tohex
 local concat = table.concat
 local str_char = string.char
 local rand = math.random
@@ -154,14 +147,14 @@ function _M.recv_frame(sock, max_payload_len, force_masking)
 
     local fst, snd = byte(data, 1, 2)
 
-    local fin = band(fst, 0x80) ~= 0
+    local fin = (fst & 0x80) ~= 0
     -- print("fin: ", fin)
 
-    if band(fst, 0x70) ~= 0 then
+    if (fst & 0x70) ~= 0 then
         return nil, nil, "bad RSV1, RSV2, or RSV3 bits"
     end
 
-    local opcode = band(fst, 0x0f)
+    local opcode = (fst & 0x0f)
     -- print("opcode: ", tohex(opcode))
 
     if opcode >= 0x3 and opcode <= 0x7 then
@@ -172,7 +165,7 @@ function _M.recv_frame(sock, max_payload_len, force_masking)
         return nil, nil, "reserved control frames"
     end
 
-    local mask = band(snd, 0x80) ~= 0
+    local mask = (snd & 0x80) ~= 0
 
     if debug then
         ngx_log(ngx_DEBUG, "recv_frame: mask bit: ", mask and 1 or 0)
@@ -182,7 +175,7 @@ function _M.recv_frame(sock, max_payload_len, force_masking)
         return nil, nil, "frame unmasked"
     end
 
-    local payload_len = band(snd, 0x7f)
+    local payload_len = (snd & 0x7f)
     -- print("payload len: ", payload_len)
 
     if payload_len == 126 then
@@ -192,7 +185,7 @@ function _M.recv_frame(sock, max_payload_len, force_masking)
                              .. (err or "unknown")
         end
 
-        payload_len = bor(lshift(byte(data, 1), 8), byte(data, 2))
+        payload_len = ((byte(data, 1) << 8) | byte(data, 2))
 
     elseif payload_len == 127 then
         local data, err = sock:readbytes(8)
@@ -210,17 +203,17 @@ function _M.recv_frame(sock, max_payload_len, force_masking)
         end
 
         local fifth = byte(data, 5)
-        if band(fifth, 0x80) ~= 0 then
+        if (fifth & 0x80) ~= 0 then
             return nil, nil, "payload len too large"
         end
 
-        payload_len = bor(lshift(fifth, 24),
-                          lshift(byte(data, 6), 16),
-                          lshift(byte(data, 7), 8),
+        payload_len = ((fifth<<24) |
+                          (byte(data, 6) << 16)|
+                          (byte(data, 7)<< 8)|
                           byte(data, 8))
     end
 
-    if band(opcode, 0x8) ~= 0 then
+    if (opcode & 0x8) ~= 0 then
         -- being a control frame
         if payload_len > 125 then
             return nil, nil, "too long payload for control frame"
@@ -270,15 +263,15 @@ function _M.recv_frame(sock, max_payload_len, force_masking)
 
             local msg, code
             if mask then
-                local fst = bxor(byte(data, 4 + 1), byte(data, 1))
-                local snd = bxor(byte(data, 4 + 2), byte(data, 2))
-                code = bor(lshift(fst, 8), snd)
+                local fst = (byte(data, 4 + 1) ~ byte(data, 1))
+                local snd = (byte(data, 4 + 2) ~ byte(data, 2))
+                code = (l(fst << 8) | snd)
 
                 if payload_len > 2 then
                     -- TODO string.buffer optimizations
                     local bytes = new_tab(payload_len - 2, 0)
                     for i = 3, payload_len do
-                        bytes[i - 2] = str_char(bxor(byte(data, 4 + i),
+                        bytes[i - 2] = str_char((byte(data, 4 + i) |
                                                      byte(data,
                                                           (i - 1) % 4 + 1)))
                     end
@@ -291,7 +284,7 @@ function _M.recv_frame(sock, max_payload_len, force_masking)
             else
                 local fst = byte(data, 1)
                 local snd = byte(data, 2)
-                code = bor(lshift(fst, 8), snd)
+                code = ((fst << 8) | snd)
 
                 -- print("parsing unmasked close frame payload: ", payload_len)
 
@@ -314,7 +307,7 @@ function _M.recv_frame(sock, max_payload_len, force_masking)
         -- TODO string.buffer optimizations
         local bytes = new_tab(payload_len, 0)
         for i = 1, payload_len do
-            bytes[i] = str_char(bxor(byte(data, 4 + i),
+            bytes[i] = str_char((byte(data, 4 + i) ~
                                      byte(data, (i - 1) % 4 + 1)))
         end
         msg = concat(bytes)
@@ -331,7 +324,7 @@ local function build_frame(fin, opcode, payload_len, payload, masking)
     -- XXX optimize this when we have string.buffer in LuaJIT 2.1
     local fst
     if fin then
-        fst = bor(0x80, opcode)
+        fst = (0x80 | opcode)
     else
         fst = opcode
     end
@@ -343,36 +336,36 @@ local function build_frame(fin, opcode, payload_len, payload, masking)
 
     elseif payload_len <= 65535 then
         snd = 126
-        extra_len_bytes = char(band(rshift(payload_len, 8), 0xff),
-                               band(payload_len, 0xff))
+        extra_len_bytes = char(((payload_len >> 8) & 0xff),
+	   (payload_len & 0xff))
 
     else
-        if band(payload_len, 0x7fffffff) < payload_len then
+        if (payload_len & 0x7fffffff) < payload_len then
             return nil, "payload too big"
         end
 
         snd = 127
         -- XXX we only support 31-bit length here
-        extra_len_bytes = char(0, 0, 0, 0, band(rshift(payload_len, 24), 0xff),
-                               band(rshift(payload_len, 16), 0xff),
-                               band(rshift(payload_len, 8), 0xff),
-                               band(payload_len, 0xff))
+        extra_len_bytes = char(0, 0, 0, 0, ((payload_len >> 24) & 0xff),
+                               ((payload_len >> 16) & 0xff),
+                               ((payload_len >> 8)& 0xff),
+                               (payload_len & 0xff))
     end
 
     local masking_key
     if masking then
         -- set the mask bit
-        snd = bor(snd, 0x80)
+        snd = (snd | 0x80)
         local key = rand(0xffffffff)
-        masking_key = char(band(rshift(key, 24), 0xff),
-                           band(rshift(key, 16), 0xff),
-                           band(rshift(key, 8), 0xff),
-                           band(key, 0xff))
+        masking_key = char(((key >> 24) & 0xff),
+	   ((key >> 16) & 0xff),
+	   ((key >> 8) & 0xff),
+	   (key & 0xff))
 
         -- TODO string.buffer optimizations
         local bytes = new_tab(payload_len, 0)
         for i = 1, payload_len do
-            bytes[i] = str_char(bxor(byte(payload, i),
+            bytes[i] = str_char((byte(payload, i) ~
                                      byte(masking_key, (i - 1) % 4 + 1)))
         end
         payload = concat(bytes)
@@ -402,7 +395,7 @@ function _M.send_frame(sock, fin, opcode, payload, max_payload_len, masking)
         return nil, "payload too big"
     end
 
-    if band(opcode, 0x8) ~= 0 then
+    if (opcode & 0x8) ~= 0 then
         -- being a control frame
         if payload_len > 125 then
             return nil, "too much payload for control frame"
