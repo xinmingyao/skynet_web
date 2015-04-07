@@ -265,7 +265,7 @@ function _M.recv_frame(sock, max_payload_len, force_masking)
             if mask then
                 local fst = (byte(data, 4 + 1) ~ byte(data, 1))
                 local snd = (byte(data, 4 + 2) ~ byte(data, 2))
-                code = (l(fst << 8) | snd)
+                code = ((fst << 8) | snd)
 
                 if payload_len > 2 then
                     -- TODO string.buffer optimizations
