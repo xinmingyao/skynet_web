@@ -20,6 +20,9 @@ end
 function sock_M:id(...)
    return self.id
 end
+function sock_M:close()
+   socket.close(self.id)
+end
 function helper.open(...)
    return socket.open(...)
 end

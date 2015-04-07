@@ -19,10 +19,17 @@ _M._VERSION = '0.03'
 
 local mt = { __index = _M }
 
+function  mt:close()
+   self.sock:close()
+end
 
 function _M.new(id,handle,opts)
    local sock = socket.new_sock(id)
    local str = sock:readline("\r\n\r\n")
+   if not str then
+      print("not valid protocol!")
+      return nil , "not valid protocol"
+   end
    local req  = wbproto.parse(str.."\r\n\r\n")
    local headers = req.headers
    local val = headers.Upgrade or headers.upgrade
@@ -73,14 +80,10 @@ function _M.new(id,handle,opts)
    rep = table.concat(rep,"\r\n")
    rep = rep.."\r\n\r\n"
    sock:write(rep)
-   local max_payload_len, send_masked, timeout
+   local max_payload_len, send_masked
    if opts then
       max_payload_len = opts.max_payload_len
       send_masked = opts.send_masked
-      timeout = opts.timeout	
-      if timeout then
-	 sock:settimeout(timeout)
-      end
    end
 
    local t1 = setmetatable({
@@ -98,6 +101,10 @@ function _M.new(id,handle,opts)
 			local data ,typ,err = t1:recv_frame()
 			if not data then 
 			   typ = "close"
+			   if handle[typ] then
+			      handle[typ]()
+			   end
+			   sock:close()
 			   return
 			end
 			local f = handle[typ]
@@ -111,18 +118,6 @@ function _M.new(id,handle,opts)
    end)
    return t1
 end
-
-
-
-function _M.set_timeout(self, time)
-    local sock = self.sock
-    if not sock then
-        return nil, nil, "not initialized yet"
-    end
-
-    return sock:settimeout(time)
-end
-
 
 function _M.recv_frame(self)
 
